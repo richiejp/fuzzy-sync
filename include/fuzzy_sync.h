@@ -79,6 +79,13 @@
 })
 #endif /* MAX */
 
+#ifndef fzsync_printf
+#define fzsync_printf(fmt, ...) do {	       \
+	printf("%s:%d: ", __FILE__, __LINE__); \
+	printf(fmt, ##__VA_ARGS__);	       \
+} while (0)
+#endif
+
 /** Some statistics for a variable */
 struct fzsync_stat {
 	float avg;
@@ -399,10 +406,9 @@ static int fzsync_pair_reset(struct fzsync_pair *pair,
  * @relates fzsync_stat
  */
 static inline void fzsync_stat_info(struct fzsync_stat stat,
-					char *unit, char *name)
+				    char *unit, char *name)
 {
-	tst_res(TINFO,
-		"%1$-17s: { avg = %3$5.0f%2$s, avg_dev = %4$5.0f%2$s, dev_ratio = %5$.2f }",
+	fzsync_printf("%1$-17s: { avg = %3$5.0f%2$s, avg_dev = %4$5.0f%2$s, dev_ratio = %5$.2f }",
 		name, unit, stat.avg, stat.avg_dev, stat.dev_ratio);
 }
 
@@ -413,8 +419,8 @@ static inline void fzsync_stat_info(struct fzsync_stat stat,
  */
 static void fzsync_pair_info(struct fzsync_pair *pair)
 {
-	tst_res(TINFO, "loop = %d, delay_bias = %d",
-		pair->exec_loop, pair->delay_bias);
+	fzsync_printf("loop = %d, delay_bias = %d",
+		      pair->exec_loop, pair->delay_bias);
 	fzsync_stat_info(pair->diff_ss, "ns", "start_a - start_b");
 	fzsync_stat_info(pair->diff_sa, "ns", "end_a - start_a");
 	fzsync_stat_info(pair->diff_sb, "ns", "end_b - start_b");
@@ -580,7 +586,7 @@ static void fzsync_pair_update(struct fzsync_pair *pair)
 				  pair->a_end, pair->b_end);
 		tst_upd_stat(&pair->spins_avg, alpha, pair->spins);
 		if (pair->sampling > 0 && --pair->sampling == 0) {
-			tst_res(TINFO, "Minimum sampling period ended");
+			fzsync_printf("Minimum sampling period ended");
 			fzsync_pair_info(pair);
 		}
 	} else if (fabsf(pair->diff_ab.avg) >= 1) {
@@ -590,17 +596,16 @@ static void fzsync_pair_update(struct fzsync_pair *pair)
 		pair->delay += (int)(1.1 * time_delay / per_spin_time);
 
 		if (!pair->sampling) {
-			tst_res(TINFO,
-				"Reached deviation ratios < %.2f, introducing randomness",
-				pair->max_dev_ratio);
-			tst_res(TINFO, "Delay range is [-%d, %d]",
-				(int)(pair->diff_sb.avg / per_spin_time) + pair->delay_bias,
-				(int)(pair->diff_sa.avg / per_spin_time) - pair->delay_bias);
+			fzsync_printf("Reached deviation ratios < %.2f, introducing randomness",
+				      pair->max_dev_ratio);
+			fzsync_printf("Delay range is [-%d, %d]",
+				      (int)(pair->diff_sb.avg / per_spin_time) + pair->delay_bias,
+				      (int)(pair->diff_sa.avg / per_spin_time) - pair->delay_bias);
 			fzsync_pair_info(pair);
 			pair->sampling = -1;
 		}
 	} else if (!pair->sampling) {
-		tst_res(TWARN, "Can't calculate random delay");
+		fzsync_printf("Can't calculate random delay");
 		fzsync_pair_info(pair);
 		pair->sampling = -1;
 	}
@@ -701,22 +706,20 @@ static inline int fzsync_run_a(struct fzsync_pair *pair)
 
 	if ((pair->exec_time * SAMPLING_SLICE < rem)
 		&& (pair->sampling > 0)) {
-		tst_res(TINFO, "Stopped sampling at %d (out of %d) samples, "
-			"sampling time reached 50%% of the total time limit",
-			pair->exec_loop, pair->min_samples);
+		fzsync_printf("Stopped sampling at %d (out of %d) samples, "
+			      "sampling time reached 50%% of the total time limit",
+			      pair->exec_loop, pair->min_samples);
 		pair->sampling = 0;
 		fzsync_pair_info(pair);
 	}
 
 	if (pair->exec_time < rem) {
-		tst_res(TINFO,
-			"Exceeded execution time, requesting exit");
+		fzsync_printf("Exceeded execution time, requesting exit");
 		exit = 1;
 	}
 
 	if (++pair->exec_loop > pair->exec_loops) {
-		tst_res(TINFO,
-			"Exceeded execution loops, requesting exit");
+		fzsync_printf("Exceeded execution loops, requesting exit");
 		exit = 1;
 	}
 
