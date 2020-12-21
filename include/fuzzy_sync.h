@@ -1,6 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
- * Copyright (c) 2017-2020 Richard Palethorpe <rpalethorpe@suse.com>
+ * Copyright (c) 2020 Richard Palethorpe <rpalethorpe@suse.com>
+ * Copyright (c) 2020 Linux Test Project (LTP) contributors
+ *
+ * This was originally developed as part of the LTP and has been
+ * contributed to by many authors. Please see
+ * ltp/include/tst_fuzzy_sync.h and its dependencies for the full
+ * history and ongoing developments
+ *
+ * https://github.com/linux-test-project/ltp/blob/master/include/tst_fuzzy_sync.h
  */
 /**
  * @file fuzzy_sync.h
