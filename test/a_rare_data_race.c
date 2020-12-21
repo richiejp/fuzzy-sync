@@ -3,21 +3,13 @@
  * Copyright (c) 2020 Richard Palethorpe <rpalethorpe@suse.com>
  */
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <unistd.h>
 
-#include "tst_test.h"
-#include "tst_safe_stdio.h"
-#include "tst_fuzzy_sync.h"
+#include "fuzzy_sync.h"
 
 #define RECORD_LEN 128
 
 static char *record_path;
-static struct tst_option opts[] = {
-	{"f:", &record_path, "-f PATH	Path to record file"},
-	{NULL, NULL, NULL}
-};
-
 static struct tst_fzsync_pair pair;
 static FILE *record;
 static volatile char winner;
@@ -78,9 +70,20 @@ static void cleanup(void)
 	fclose(record);
 }
 
-static struct tst_test test = {
-	.setup = setup,
-	.options = opts,
-	.cleanup = cleanup,
-	.test_all = run,
-};
+static int main(int argc, char *argv[])
+{
+	int opt;
+
+	opt = getopt(argc, argv, "f:");
+
+	if (opt != 'f') {
+		fzsync_printf("Usage: %s -f <path>\n", argv[0]);
+		return 1;
+	}
+
+	record_path = optarg;
+
+	setup();
+	run();
+	cleanup();
+}
