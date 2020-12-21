@@ -269,7 +269,7 @@ static void *fzsync_thread_wrapper(void *run_thread)
  *
  * @relates fzsync_stat
  */
-static void tst_init_stat(struct fzsync_stat *s)
+static void fzsync_init_stat(struct fzsync_stat *s)
 {
 	s->avg = 0;
 	s->avg_dev = 0;
@@ -298,11 +298,11 @@ static void fzsync_pair_reset(struct fzsync_pair *pair,
 {
 	fzsync_pair_cleanup(pair);
 
-	tst_init_stat(&pair->diff_ss);
-	tst_init_stat(&pair->diff_sa);
-	tst_init_stat(&pair->diff_sb);
-	tst_init_stat(&pair->diff_ab);
-	tst_init_stat(&pair->spins_avg);
+	fzsync_init_stat(&pair->diff_ss);
+	fzsync_init_stat(&pair->diff_sa);
+	fzsync_init_stat(&pair->diff_sb);
+	fzsync_init_stat(&pair->diff_ab);
+	fzsync_init_stat(&pair->spins_avg);
 	pair->delay = 0;
 	pair->sampling = pair->min_samples;
 
