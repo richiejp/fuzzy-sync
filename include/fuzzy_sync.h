@@ -202,6 +202,28 @@ static void fzsync_pair_init(struct fzsync_pair *pair)
 }
 #undef CHK
 
+/* If the atomic compiler intrinsics are missing see the fallbacks in
+ * ltp/include/tst_atomic.h */
+static inline int fzsync_atomic_add_return(int i, int *v)
+{
+	return __atomic_add_fetch(v, i, __ATOMIC_SEQ_CST);
+}
+
+static inline int fzsync_atomic_load(int *v)
+{
+	return __atomic_load_n(v, __ATOMIC_SEQ_CST);
+}
+
+static inline void fzsync_atomic_store(int i, int *v)
+{
+	__atomic_store_n(v, i, __ATOMIC_SEQ_CST);
+}
+
+static inline int fzsync_atomic_inc(int *v)
+{
+	return fzsync_atomic_add_return(1, v);
+}
+
 /**
  * Exit and join thread B if necessary.
  *
@@ -214,7 +236,7 @@ static void fzsync_pair_cleanup(struct fzsync_pair *pair)
 	if (pair->thread_b) {
 		/* Revoke thread B if parent hits accidental break */
 		if (!pair->exit) {
-			tst_atomic_store(1, &pair->exit);
+			fzsync_atomic_store(1, &pair->exit);
 			usleep(100000);
 			pthread_cancel(pair->thread_b);
 		}
@@ -545,7 +567,7 @@ static inline void fzsync_pair_wait(int *our_cntr,
 					int *other_cntr,
 					int *spins)
 {
-	if (tst_atomic_inc(other_cntr) == INT_MAX) {
+	if (fzsync_atomic_inc(other_cntr) == INT_MAX) {
 		/*
 		 * We are about to break the invariant that the thread with
 		 * the lowest count is in front of the other. So we must wait
@@ -553,25 +575,25 @@ static inline void fzsync_pair_wait(int *our_cntr,
 		 * line above before doing that. If we are in rear position
 		 * then our counter may already have been set to zero.
 		 */
-		while (tst_atomic_load(our_cntr) > 0
-		       && tst_atomic_load(our_cntr) < INT_MAX) {
+		while (fzsync_atomic_load(our_cntr) > 0
+		       && fzsync_atomic_load(our_cntr) < INT_MAX) {
 			if (spins)
 				(*spins)++;
 		}
 
-		tst_atomic_store(0, other_cntr);
+		fzsync_atomic_store(0, other_cntr);
 		/*
 		 * Once both counters have been set to zero the invariant
 		 * is restored and we can continue.
 		 */
-		while (tst_atomic_load(our_cntr) > 1)
+		while (fzsync_atomic_load(our_cntr) > 1)
 			;
 	} else {
 		/*
 		 * If our counter is less than the other thread's we are ahead
 		 * of it and need to wait.
 		 */
-		while (tst_atomic_load(our_cntr) < tst_atomic_load(other_cntr)) {
+		while (fzsync_atomic_load(our_cntr) < fzsync_atomic_load(other_cntr)) {
 			if (spins)
 				(*spins)++;
 		}
@@ -637,7 +659,7 @@ static inline int fzsync_run_a(struct fzsync_pair *pair)
 		exit = 1;
 	}
 
-	tst_atomic_store(exit, &pair->exit);
+	fzsync_atomic_store(exit, &pair->exit);
 	fzsync_wait_a(pair);
 
 	if (exit) {
@@ -657,7 +679,7 @@ static inline int fzsync_run_a(struct fzsync_pair *pair)
 static inline int fzsync_run_b(struct fzsync_pair *pair)
 {
 	fzsync_wait_b(pair);
-	return !tst_atomic_load(&pair->exit);
+	return !fzsync_atomic_load(&pair->exit);
 }
 
 /**
