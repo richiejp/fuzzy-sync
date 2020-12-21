@@ -437,9 +437,9 @@ static void fzsync_pair_info(struct fzsync_pair *pair)
  *
  * @return The average including the current sample.
  */
-static inline float tst_exp_moving_avg(float alpha,
-					float sample,
-					float prev_avg)
+static inline float fzsync_exp_moving_avg(float alpha,
+					  float sample,
+					  float prev_avg)
 {
 	return alpha * sample + (1.0 - alpha) * prev_avg;
 }
@@ -449,12 +449,12 @@ static inline float tst_exp_moving_avg(float alpha,
  *
  * @relates fzsync_stat
  */
-static inline void tst_upd_stat(struct fzsync_stat *s,
-				 float alpha,
-				 float sample)
+static inline void fzsync_upd_stat(struct fzsync_stat *s,
+				   float alpha,
+				   float sample)
 {
-	s->avg = tst_exp_moving_avg(alpha, sample, s->avg);
-	s->avg_dev = tst_exp_moving_avg(alpha,
+	s->avg = fzsync_exp_moving_avg(alpha, sample, s->avg);
+	s->avg_dev = fzsync_exp_moving_avg(alpha,
 					fabs(s->avg - sample), s->avg_dev);
 	s->dev_ratio = fabs(s->avg ? s->avg_dev / s->avg : 0);
 }
@@ -464,12 +464,12 @@ static inline void tst_upd_stat(struct fzsync_stat *s,
  *
  * @relates fzsync_stat
  */
-static inline void tst_upd_diff_stat(struct fzsync_stat *s,
-				     float alpha,
-				     struct timespec t1,
-				     struct timespec t2)
+static inline void fzsync_upd_diff_stat(struct fzsync_stat *s,
+					float alpha,
+					struct timespec t1,
+					struct timespec t2)
 {
-	tst_upd_stat(s, alpha, fzsync_diff_ns(t1, t2));
+	fzsync_upd_stat(s, alpha, fzsync_diff_ns(t1, t2));
 }
 
 /**
@@ -576,15 +576,15 @@ static void fzsync_pair_update(struct fzsync_pair *pair)
 		|| pair->spins_avg.dev_ratio > max_dev;
 
 	if (pair->sampling > 0 || over_max_dev) {
-		tst_upd_diff_stat(&pair->diff_ss, alpha,
+		fzsync_upd_diff_stat(&pair->diff_ss, alpha,
 				  pair->a_start, pair->b_start);
-		tst_upd_diff_stat(&pair->diff_sa, alpha,
+		fzsync_upd_diff_stat(&pair->diff_sa, alpha,
 				  pair->a_end, pair->a_start);
-		tst_upd_diff_stat(&pair->diff_sb, alpha,
+		fzsync_upd_diff_stat(&pair->diff_sb, alpha,
 				  pair->b_end, pair->b_start);
-		tst_upd_diff_stat(&pair->diff_ab, alpha,
+		fzsync_upd_diff_stat(&pair->diff_ab, alpha,
 				  pair->a_end, pair->b_end);
-		tst_upd_stat(&pair->spins_avg, alpha, pair->spins);
+		fzsync_upd_stat(&pair->spins_avg, alpha, pair->spins);
 		if (pair->sampling > 0 && --pair->sampling == 0) {
 			fzsync_printf("Minimum sampling period ended");
 			fzsync_pair_info(pair);
