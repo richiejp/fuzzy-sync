@@ -228,11 +228,14 @@ static inline int fzsync_atomic_inc(int *v)
  * Exit and join thread B if necessary.
  *
  * @relates fzsync_pair
+ * @returns The result of pthread_join()
  *
  * Call this from your cleanup function.
  */
-static void fzsync_pair_cleanup(struct fzsync_pair *pair)
+static int fzsync_pair_cleanup(struct fzsync_pair *pair)
 {
+	int rval = 0;
+
 	if (pair->thread_b) {
 		/* Revoke thread B if parent hits accidental break */
 		if (!pair->exit) {
@@ -240,9 +243,11 @@ static void fzsync_pair_cleanup(struct fzsync_pair *pair)
 			usleep(100000);
 			pthread_cancel(pair->thread_b);
 		}
-		SAFE_PTHREAD_JOIN(pair->thread_b, NULL);
+		rval = pthread_join(pair->thread_b, NULL);
 		pair->thread_b = 0;
 	}
+
+	return rval;
 }
 
 /** To store the run_b pointer and pass to fzsync_thread_wrapper */
@@ -281,6 +286,7 @@ static void fzsync_init_stat(struct fzsync_stat *s)
  * @relates fzsync_pair
  * @param pair The state structure initialised with FZSYNC_PAIR_INIT.
  * @param run_b The function defining thread B or NULL.
+ * @returns The result of pthread_create or zero
  *
  * Call this from your main test function (thread A), just before entering the
  * main loop. It will (re)set any variables needed by fzsync and (re)start
@@ -293,9 +299,11 @@ static void fzsync_init_stat(struct fzsync_stat *s)
  *
  * @sa fzsync_pair_init()
  */
-static void fzsync_pair_reset(struct fzsync_pair *pair,
+static int fzsync_pair_reset(struct fzsync_pair *pair,
 				  void *(*run_b)(void *))
 {
+	int rval = 0;
+
 	fzsync_pair_cleanup(pair);
 
 	fzsync_init_stat(&pair->diff_ss);
@@ -316,10 +324,13 @@ static void fzsync_pair_reset(struct fzsync_pair *pair,
 
 		wrap_run_b.func = run_b;
 		wrap_run_b.arg = NULL;
-		SAFE_PTHREAD_CREATE(&pair->thread_b, 0, fzsync_thread_wrapper, &wrap_run_b);
+		rval = pthread_create(&pair->thread_b, 0,
+				      fzsync_thread_wrapper, &wrap_run_b);
 	}
 
 	pair->exec_time_start = (float)tst_timeout_remaining();
+
+	return rval;
 }
 
 /**
