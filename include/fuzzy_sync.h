@@ -59,7 +59,9 @@
 #include <sys/time.h>
 #include <time.h>
 #include <math.h>
+#include <float.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <pthread.h>
 #include <assert.h>
 
@@ -163,16 +165,13 @@ struct fzsync_pair {
 	/** Internal; Used by fzsync_pair_exit() and fzsync_pair_wait() */
 	int exit;
 	/**
-	 * The maximum desired execution time as a proportion of the timeout
+	 * The maximum desired execution time
 	 *
-	 * A value x so that 0 < x < 1 which decides how long the test should
-	 * be run for (assuming the loop limit is not exceeded first).
-	 *
-	 * Defaults to 0.5 (~150 seconds with default timeout).
+	 * Defaults to 150 seconds.
 	 */
-	float exec_time_p;
+	float exec_time;
 	/** Internal; The test time remaining on fzsync_pair_reset() */
-	float exec_time_start;
+	struct timespec exec_time_start;
 	/**
 	 * The maximum number of iterations to execute during the test
 	 *
@@ -202,10 +201,10 @@ struct fzsync_pair {
  */
 static void fzsync_pair_init(struct fzsync_pair *pair)
 {
-	CHK(avg_alpha, 0, 1, 0.25);
+	CHK(avg_alpha, FLT_MIN, 1, 0.25);
 	CHK(min_samples, 20, INT_MAX, 1024);
-	CHK(max_dev_ratio, 0, 1, 0.1);
-	CHK(exec_time_p, 0, 1, 0.5);
+	CHK(max_dev_ratio, FLT_MIN, 1, 0.1);
+	CHK(exec_time, 1, FLT_MAX, 150);
 	CHK(exec_loops, 20, INT_MAX, 3000000);
 }
 #undef CHK
@@ -289,12 +288,62 @@ static void fzsync_init_stat(struct fzsync_stat *s)
 }
 
 /**
+ * Take the difference in nanoseconds
+ *
+ * Will overflow if there is more than ~2 second difference and long
+ * is 32bit.
+ */
+static inline long fzsync_diff_ns(struct timespec t1, struct timespec t2)
+{
+	long res = (t1.tv_sec - t2.tv_sec) * 1000000000;
+
+	return res + t1.tv_nsec - t2.tv_nsec;
+}
+
+/**
+ * Approximately return the time remaining in seconds
+ *
+ * If less than a second is remaining we round up to 1
+ */
+static long fzsync_timeout_remaining(const struct fzsync_pair *pair)
+{
+	static struct timespec now;
+	long res = pair->exec_time;
+
+	fzsync_time(&now);
+	res -= (now.tv_sec - pair->exec_time_start.tv_sec);
+
+	if (res > 0)
+		return res;
+
+	if (res < 0)
+		return 0;
+
+	res = now.tv_nsec - pair->exec_time_start.tv_nsec;
+
+	if (res > 0)
+		return 1;
+
+	return 0;
+}
+
+/** Wraps clock_gettime */
+static inline int fzsync_time(struct timespec *t)
+{
+#ifdef CLOCK_MONOTONIC_RAW
+	return clock_gettime(CLOCK_MONOTONIC_RAW, t);
+#else
+	return clock_gettime(CLOCK_MONOTONIC, t);
+#endif
+}
+
+/**
  * Reset or initialise fzsync.
  *
  * @relates fzsync_pair
  * @param pair The state structure initialised with FZSYNC_PAIR_INIT.
  * @param run_b The function defining thread B or NULL.
- * @returns The result of pthread_create or zero
+ * @returns The result of pthread_create, clock_gettime or zero
  *
  * Call this from your main test function (thread A), just before entering the
  * main loop. It will (re)set any variables needed by fzsync and (re)start
@@ -334,9 +383,12 @@ static int fzsync_pair_reset(struct fzsync_pair *pair,
 		wrap_run_b.arg = NULL;
 		rval = pthread_create(&pair->thread_b, 0,
 				      fzsync_thread_wrapper, &wrap_run_b);
+
+		if (rval)
+			return rval;
 	}
 
-	pair->exec_time_start = (float)tst_timeout_remaining();
+	rval = fzsync_time(&pair->exec_time_start);
 
 	return rval;
 }
@@ -368,16 +420,6 @@ static void fzsync_pair_info(struct fzsync_pair *pair)
 	fzsync_stat_info(pair->diff_sb, "ns", "end_b - start_b");
 	fzsync_stat_info(pair->diff_ab, "ns", "end_a - end_b");
 	fzsync_stat_info(pair->spins_avg, "  ", "spins");
-}
-
-/** Wraps clock_gettime */
-static inline void fzsync_time(struct timespec *t)
-{
-#ifdef CLOCK_MONOTONIC_RAW
-	clock_gettime(CLOCK_MONOTONIC_RAW, t);
-#else
-	clock_gettime(CLOCK_MONOTONIC, t);
-#endif
 }
 
 /**
@@ -421,7 +463,7 @@ static inline void tst_upd_diff_stat(struct fzsync_stat *s,
 				     struct timespec t1,
 				     struct timespec t2)
 {
-	tst_upd_stat(s, alpha, tst_timespec_diff_ns(t1, t2));
+	tst_upd_stat(s, alpha, fzsync_diff_ns(t1, t2));
 }
 
 /**
@@ -655,9 +697,9 @@ static inline void fzsync_wait_b(struct fzsync_pair *pair)
 static inline int fzsync_run_a(struct fzsync_pair *pair)
 {
 	int exit = 0;
-	float rem_p = 1 - tst_timeout_remaining() / pair->exec_time_start;
+	float rem = fzsync_timeout_remaining();
 
-	if ((pair->exec_time_p * SAMPLING_SLICE < rem_p)
+	if ((pair->exec_time * SAMPLING_SLICE < rem)
 		&& (pair->sampling > 0)) {
 		tst_res(TINFO, "Stopped sampling at %d (out of %d) samples, "
 			"sampling time reached 50%% of the total time limit",
@@ -666,7 +708,7 @@ static inline int fzsync_run_a(struct fzsync_pair *pair)
 		fzsync_pair_info(pair);
 	}
 
-	if (pair->exec_time_p < rem_p) {
+	if (pair->exec_time < rem) {
 		tst_res(TINFO,
 			"Exceeded execution time, requesting exit");
 		exit = 1;
