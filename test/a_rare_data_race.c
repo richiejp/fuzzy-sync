@@ -10,67 +10,82 @@
 #define RECORD_LEN 128
 
 static char *record_path;
-static struct tst_fzsync_pair pair;
+static struct fzsync_pair pair;
 static FILE *record;
 static volatile char winner;
 
 static long long tons(struct timespec ts)
 {
-	return tst_ts_to_ns(tst_ts_from_timespec(ts));
+	long long res = ts.tv_sec;
+
+	res *= 1000000000;
+	res += ts.tv_nsec;
+
+	return res;
 }
 
 static void setup(void)
 {
-	record = SAFE_FOPEN(record_path, "w");
+	record = fopen(record_path, "w");
 
-	if (fputs("winner,a_start,b_start,a_end,b_end\n", record) < 0 || fflush(record) != 0)
-		tst_brk(TBROK | TERRNO, "Can't write to %s", record_path);
+	if (!record) {
+		fzsync_printf("fopen(%s, w) -> %s",
+			      record_path, strerror(errno));
+		exit(1);
+	}
+
+	if (fputs("winner,a_start,b_start,a_end,b_end\n", record) < 0
+	    || fflush(record) != 0) {
+		fzsync_printf("Can't write to %s -> %s",
+			      record_path, strerror(errno));
+		cleanup(1);
+	}
 
 	tst_fzsync_pair_init(&pair);
 	pair.exec_loops = 100000;
 }
 
-static void *worker(void *v LTP_ATTRIBUTE_UNUSED)
+static void *worker(void *v)
 {
 	struct timespec delay = { 0, 1 };
 
-	while (tst_fzsync_run_b(&pair)) {
-		tst_fzsync_start_race_b(&pair);
+	while (fzsync_run_b(&pair)) {
+		fzsync_start_race_b(&pair);
 		nanosleep(&delay, NULL);
 		winner = 'B';
-		tst_fzsync_end_race_b(&pair);
+		fzsync_end_race_b(&pair);
 	}
 
-	return NULL;
+	return v;
 }
 
 static void run(void)
 {
-	tst_fzsync_pair_reset(&pair, worker);
+	if (fzsync_pair_reset(&pair, worker))
+		cleanup(1);
 
-	while (tst_fzsync_run_a(&pair)) {
+	while (fzsync_run_a(&pair)) {
 		winner = 'A';
 
-		tst_fzsync_start_race_a(&pair);
+		fzsync_start_race_a(&pair);
 		if (winner == 'A' && winner == 'B')
 			winner = 'A';
-		tst_fzsync_end_race_a(&pair);
+		fzsync_end_race_a(&pair);
 
 		fprintf(record, "%c,%lld,%lld,%lld,%lld\n", winner,
 			tons(pair.a_start), tons(pair.b_start),
 			tons(pair.a_end), tons(pair.b_end));
 	}
-
-	tst_res(TPASS, "We made it to the end!");
 }
 
-static void cleanup(void)
+static void cleanup(int exitno)
 {
-	tst_fzsync_pair_cleanup(&pair);
+	fzsync_pair_cleanup(&pair);
 	fclose(record);
+	exit(exitno);
 }
 
-static int main(int argc, char *argv[])
+static void main(int argc, char *argv[])
 {
 	int opt;
 
@@ -85,5 +100,5 @@ static int main(int argc, char *argv[])
 
 	setup();
 	run();
-	cleanup();
+	cleanup(0);
 }
