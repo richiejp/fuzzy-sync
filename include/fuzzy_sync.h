@@ -69,6 +69,14 @@
 /* how much of exec time is sampling allowed to take */
 #define SAMPLING_SLICE 0.5f
 
+#ifndef MAX
+# define MAX(a, b) ({ \
+	typeof(a) _a = (a); \
+	typeof(b) _b = (b); \
+	_a > _b ? _a : _b; \
+})
+#endif /* MAX */
+
 /** Some statistics for a variable */
 struct fzsync_stat {
 	float avg;
