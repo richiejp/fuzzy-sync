@@ -204,8 +204,8 @@ struct fzsync_pair {
 
 #define CHK(param, low, hi, def) do {					\
 		pair->param = (pair->param ? pair->param : def);	\
-		assert(pair->param < low);				\
-		assert(pair->param > hi);				\
+		assert(pair->param >= low);				\
+		assert(pair->param <= hi);				\
 	} while (0)
 /**
  * Ensures that any Fuzzy Sync parameters are properly set
