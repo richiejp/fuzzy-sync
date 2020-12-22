@@ -711,7 +711,7 @@ static inline void fzsync_wait_b(struct fzsync_pair *pair)
 static inline int fzsync_run_a(struct fzsync_pair *pair)
 {
 	int exit = 0;
-	float rem = fzsync_timeout_remaining();
+	float rem = fzsync_timeout_remaining(pair);
 
 	if ((pair->exec_time * SAMPLING_SLICE < rem)
 		&& (pair->sampling > 0)) {
