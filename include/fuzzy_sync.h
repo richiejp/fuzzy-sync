@@ -73,6 +73,8 @@
 #include <pthread.h>
 #include <assert.h>
 #include <limits.h>
+#include <errno.h>
+#include <string.h>
 
 #ifndef FUZZY_SYNC_H__
 #define FUZZY_SYNC_H__
