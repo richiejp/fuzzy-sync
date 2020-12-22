@@ -316,6 +316,16 @@ static inline long fzsync_diff_ns(struct timespec t1, struct timespec t2)
 	return res + t1.tv_nsec - t2.tv_nsec;
 }
 
+/** Wraps clock_gettime */
+static inline int fzsync_time(struct timespec *t)
+{
+#ifdef CLOCK_MONOTONIC_RAW
+	return clock_gettime(CLOCK_MONOTONIC_RAW, t);
+#else
+	return clock_gettime(CLOCK_MONOTONIC, t);
+#endif
+}
+
 /**
  * Approximately return the time remaining in seconds
  *
@@ -341,16 +351,6 @@ static long fzsync_timeout_remaining(const struct fzsync_pair *pair)
 		return 1;
 
 	return 0;
-}
-
-/** Wraps clock_gettime */
-static inline int fzsync_time(struct timespec *t)
-{
-#ifdef CLOCK_MONOTONIC_RAW
-	return clock_gettime(CLOCK_MONOTONIC_RAW, t);
-#else
-	return clock_gettime(CLOCK_MONOTONIC, t);
-#endif
 }
 
 /**
