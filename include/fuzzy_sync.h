@@ -91,9 +91,9 @@
 #endif /* MAX */
 
 #ifndef fzsync_printf
-#define fzsync_printf(fmt, ...) do {	       \
-	printf("%s:%d: ", __FILE__, __LINE__); \
-	printf(fmt, ##__VA_ARGS__);	       \
+#define fzsync_printf(fmt, ...) do {					\
+	printf("%s:%d: ", __FILE__ + SOURCE_PATH_SIZE, __LINE__);	\
+	printf(fmt "\n", ##__VA_ARGS__);				\
 } while (0)
 #endif
 
