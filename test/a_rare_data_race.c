@@ -85,7 +85,7 @@ static void run(void)
 	}
 }
 
-static void main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	int opt;
 
