@@ -24,6 +24,13 @@ static long long tons(struct timespec ts)
 	return res;
 }
 
+static void cleanup(int exitno)
+{
+	fzsync_pair_cleanup(&pair);
+	fclose(record);
+	exit(exitno);
+}
+
 static void setup(void)
 {
 	record = fopen(record_path, "w");
@@ -76,13 +83,6 @@ static void run(void)
 			tons(pair.a_start), tons(pair.b_start),
 			tons(pair.a_end), tons(pair.b_end));
 	}
-}
-
-static void cleanup(int exitno)
-{
-	fzsync_pair_cleanup(&pair);
-	fclose(record);
-	exit(exitno);
 }
 
 static void main(int argc, char *argv[])
