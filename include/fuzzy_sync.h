@@ -315,7 +315,7 @@ static inline long fzsync_diff_ns(struct timespec t1, struct timespec t2)
 {
 	long res = (t1.tv_sec - t2.tv_sec) * 1000000000;
 
-	return res + t1.tv_nsec - t2.tv_nsec;
+	return res + (t1.tv_nsec - t2.tv_nsec);
 }
 
 /** Wraps clock_gettime */
@@ -339,6 +339,7 @@ static long fzsync_timeout_remaining(const struct fzsync_pair *pair)
 	long res = pair->exec_time;
 
 	fzsync_time(&now);
+	assert(now.tv_sec >= pair->exec_time_start.tv_sec);
 	res -= (now.tv_sec - pair->exec_time_start.tv_sec);
 
 	if (res > 0)
@@ -715,7 +716,7 @@ static inline int fzsync_run_a(struct fzsync_pair *pair)
 	int exit = 0;
 	float rem = fzsync_timeout_remaining(pair);
 
-	if ((pair->exec_time * SAMPLING_SLICE < rem)
+	if ((pair->exec_time * SAMPLING_SLICE > rem)
 		&& (pair->sampling > 0)) {
 		fzsync_printf("Stopped sampling at %d (out of %d) samples, "
 			      "sampling time reached 50%% of the total time limit",
@@ -724,7 +725,7 @@ static inline int fzsync_run_a(struct fzsync_pair *pair)
 		fzsync_pair_info(pair);
 	}
 
-	if (pair->exec_time < rem) {
+	if (!rem) {
 		fzsync_printf("Exceeded execution time, requesting exit");
 		exit = 1;
 	}
