@@ -48,7 +48,7 @@ static void setup(void)
 		cleanup(1);
 	}
 
-	tst_fzsync_pair_init(&pair);
+	fzsync_pair_init(&pair);
 	pair.exec_loops = 100000;
 }
 
