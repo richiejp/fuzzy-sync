@@ -8,7 +8,7 @@
  * ltp/include/tst_fuzzy_sync.h and its dependencies for the full
  * history and ongoing developments
  *
- * https://github.com/linux-test-project/ltp/blob/master/include/tst_fuzzy_sync.h
+ * https://github.com/linux-test-project/ltp/blob/master/include/tst_fuzzy_nnsync.h
  */
 /**
  * @file fuzzy_sync.h
@@ -75,6 +75,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 
 #ifndef FUZZY_SYNC_H__
 #define FUZZY_SYNC_H__

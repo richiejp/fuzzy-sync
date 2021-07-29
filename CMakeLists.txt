@@ -12,13 +12,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 add_compile_definitions(_FORTIFY_SOURCE=2)
 add_compile_options(
   -O1 -Wall -Wextra -Werror
-  -g -fno-omit-frame-pointer -fsanitize=address
+  -g -fno-omit-frame-pointer #-fsanitize=address
   -Wno-unused-const-variable)
 string(LENGTH "${CMAKE_SOURCE_DIR}/" SOURCE_PATH_SIZE)
 add_definitions("-DSOURCE_PATH_SIZE=${SOURCE_PATH_SIZE}")
 
 link_libraries(Threads::Threads)
-add_link_options(-fsanitize=address)
+#add_link_options(-fsanitize=address)
 include_directories(include)
 
 enable_testing()
@@ -29,3 +29,5 @@ function(fzsync_test name)
 endfunction(fzsync_test)
 
 fzsync_test(a_rare_data_race -f timings.csv)
+fzsync_test(basic)
+fzsync_test(multi)
