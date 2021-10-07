@@ -26,6 +26,7 @@ enable_testing()
 function(fzsync_test name)
   add_executable(${name} test/${name}.c)
   add_test(${name} ${name} ${ARGN})
+  add_test(${name}-1cpu taskset -c 0 ${name} ${ARGN})
 endfunction(fzsync_test)
 
 fzsync_test(a_rare_data_race -f timings.csv)

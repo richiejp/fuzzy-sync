@@ -76,9 +76,21 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <sched.h>
 
 #ifndef FUZZY_SYNC_H__
 #define FUZZY_SYNC_H__
+
+/**
+ * Called within the inner wait loop
+ *
+ * sched_yield() is needed for conducting races on single cores. This
+ * can be overridden with a #define.
+ */
+static inline void fzsync_yield()
+{
+	sched_yield();
+}
 
 /* how much of exec time is sampling allowed to take */
 #define SAMPLING_SLICE 0.5f
@@ -658,6 +670,8 @@ static inline void fzsync_pair_wait(int *our_cntr,
 		       && fzsync_atomic_load(our_cntr) < INT_MAX) {
 			if (spins)
 				(*spins)++;
+
+			fzsync_yield();
 		}
 
 		fzsync_atomic_store(0, other_cntr);
@@ -666,7 +680,7 @@ static inline void fzsync_pair_wait(int *our_cntr,
 		 * is restored and we can continue.
 		 */
 		while (fzsync_atomic_load(our_cntr) > 1)
-			;
+			fzsync_yield();
 	} else {
 		/*
 		 * If our counter is less than the other thread's we are ahead
@@ -675,6 +689,8 @@ static inline void fzsync_pair_wait(int *our_cntr,
 		while (fzsync_atomic_load(our_cntr) < fzsync_atomic_load(other_cntr)) {
 			if (spins)
 				(*spins)++;
+
+			fzsync_yield();
 		}
 	}
 }
