@@ -66,6 +66,10 @@
 
 #include "fuzzy_sync.h"
 
+#ifndef DEBUG
+# define DEBUG 0
+#endif
+
 #ifndef ARRAY_SIZE
 # define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #endif
@@ -98,9 +102,8 @@ static struct fzsync_pair pair;
 
 static const struct race races[] = {
 	/* Degnerate cases where the critical sections are already
-	 * aligned. The first case will fail when ncpu < 2 as a yield
-	 * inside the critical section is required for the other
-	 * thread to run.
+	 * aligned. The first case will fail when ncpu < 2 and yield
+	 * is disabled.
 	 */
 	{ .a = { 0, 0, 0 }, .b = { 0, 0, 0 } },
 	{ .a = { 0, 1, 0 }, .b = { 0, 1, 0 } },
@@ -155,7 +158,7 @@ static void delay(const int t)
 {
 	int k = TIME_SCALE(t);
 
-	while (k--)
+	while (fzsync_atomic_add_return(-1, &k) > 0)
 		sched_yield();
 }
 
@@ -163,20 +166,34 @@ static void *worker(void *v)
 {
 	unsigned int i = *(unsigned int *)v;
 	const struct window b = races[i].b;
+	struct timespec s_time, window_s_time, window_t_time;
+	struct fzsync_stat s = { 0 }, t = { 0 };
+
 
 	while (fzsync_run_b(&pair)) {
-		if (fzsync_atomic_load(&c))
-			fzsync_printf("Counter should now be zero");
 
+		fzsync_time(&s_time);
 		fzsync_start_race_b(&pair);
+
 		delay(b.critical_s);
 
 		fzsync_atomic_add_return(1, &c);
+		fzsync_time(&window_s_time);
 		delay(b.critical_t);
 		fzsync_atomic_add_return(1, &c);
+		fzsync_time(&window_t_time);
 
 		delay(b.return_t);
 		fzsync_end_race_b(&pair);
+
+		fzsync_upd_diff_stat(&s, 0.25, window_s_time, s_time);
+		fzsync_upd_diff_stat(&t, 0.25, window_t_time, s_time);
+
+		if (!DEBUG || (pair.exec_loop != 5000 && pair.exec_loop % 100000 > 0))
+			continue;
+
+		fzsync_stat_info(s, "ns", "B window start");
+		fzsync_stat_info(t, "ns", "B window end");
 	}
 
 	return NULL;
@@ -191,6 +208,8 @@ static void run(unsigned int i)
 	};
 	int rval;
 	int cs, ct, r, too_early = 0, critical = 0, too_late = 0;
+	struct timespec s_time, window_s_time, window_t_time;
+	struct fzsync_stat s = { 0 }, t = { 0 };
 
 	fzsync_pair_reset(&pair, NULL);
 	rval = pthread_create(&pair.thread_b, 0, fzsync_thread_wrapper,
@@ -202,12 +221,15 @@ static void run(unsigned int i)
 
 	while (fzsync_run_a(&pair)) {
 
+		fzsync_time(&s_time);
 		fzsync_start_race_a(&pair);
 		delay(a.critical_s);
 
+		fzsync_time(&window_s_time);
 		cs = fzsync_atomic_add_return(1, &c);
 		delay(a.critical_t);
 		ct = fzsync_atomic_add_return(1, &c);
+		fzsync_time(&window_t_time);
 
 		delay(a.return_t);
 		fzsync_end_race_a(&pair);
@@ -225,14 +247,23 @@ static void run(unsigned int i)
 			return;
 		}
 
+		fzsync_upd_diff_stat(&s, 0.25, window_s_time, s_time);
+		fzsync_upd_diff_stat(&t, 0.25, window_t_time, s_time);
+
 		if (critical > 100) {
 			fzsync_pair_cleanup(&pair);
 			break;
 		}
+
+		if (!DEBUG || (pair.exec_loop != 5000 && pair.exec_loop % 100000 > 0))
+			continue;
+
+		fzsync_stat_info(s, "ns", "A window start");
+		fzsync_stat_info(t, "ns", "A window end");
 	}
 
 	fzsync_printf(
-		"acs:%-2d act:%-2d art:%-2d | =:%-4d -:%-4d +:%-4d",
+		"acs:%-2d act:%-2d art:%-2d | =:%-4d -:%-4d +:%-4d\n",
 		a.critical_s, a.critical_t, a.return_t,
 		critical, too_early, too_late);
 }

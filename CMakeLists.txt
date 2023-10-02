@@ -24,7 +24,15 @@ include_directories(include)
 enable_testing()
 
 function(fzsync_test name)
-  add_executable(${name} test/${name}.c)
+  add_executable(${name} "")
+  target_sources(${name}
+    PRIVATE
+    	test/${name}.c
+  )
+  target_compile_definitions(${name}
+    PRIVATE
+    	$<$<CONFIG:Debug>:DEBUG=1>
+  )
   add_test(${name} ${name} ${ARGN})
   add_test(${name}-1cpu taskset -c 0 ${CMAKE_BINARY_DIR}/${name} ${ARGN})
 endfunction(fzsync_test)

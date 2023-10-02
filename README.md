@@ -20,7 +20,8 @@ To build this project and run the example test do.
 
 ```
 $ mkdir build && cd build
-$ cmake ..
+$ cmake .. [-DCMAKE_BUILD_TYPE=Debug]
+$ cmake --build .
 $ ctest -V					# or make test
 ```
 
@@ -30,10 +31,6 @@ relevant part of `CMakeLists.txt` to add new tests. E.g
 ```
 $ cp test/a_rare_data_race.c test/a_new_test.c
 $ echo "fzsync_test(a_new_test)" >> CMakeLists.txt
-$ cd build
-$ cmake ..
-$ make
-$ ctest -V
 ```
 
 ## Further info
